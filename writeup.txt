@@ -1,0 +1,21 @@
+Q0: can't get it correct :/
+
+Q1: I used the q-Ai-Bi-Ei point-in-triangle test on the four points, and determined which points of the quad passed.
+
+Q2: I used the triangle vertices to create a bounding box, clamp it with the region origin and dimensions, and check all the non-overlapping 2x2 boxes whose origin lies within the bounding box.
+
+Q3: I used a tile-major frameBuffer structure, where each tile comes with its own copy of the frame buffer to write to.
+
+Q4: Each thread works on a subset of the triangles, in parallel with each other.
+
+Q5: unsure how to do that overall, but I just use an iterator within a core :/
+
+Q6: no...
+
+Q7: Order and layering must be preserved (so instead of replacing the content of a frameBuffer on a successful depth check, you must blend the new data with what's already there).
+
+Q8: Scenes where triangles are (near-) evenly spread out across the screen benefit the most, whereas scenes with particularly dense clumps of triangles in some areas benefit the least, since you get load imbalance.
+
+Q9: I'd keep the binning process the same (no reason for triangle samples to be spread out across bins), but for each triangle in my ProcessBin, I'd repeat the process for different sample (so sample on the outer loop) and blend my results at the end.
+
+Q10: Those scenes have a LOT of occlusion, so you're getting rid of a lot of unnecessary work. This is the key benefit of TBDR: regardless of the order your triangles are given, you don't have to waste time drawing occluded triangles to your frame buffer.
