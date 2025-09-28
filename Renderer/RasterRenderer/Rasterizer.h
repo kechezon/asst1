@@ -94,10 +94,10 @@ namespace RasterRenderer
         // Tips:
         //
         //   This function tests four sample points at a time, defined by (x[i], y[i]).
-        //   the return value is a 32 bit integer, where bit 3 (0x8), 7(0x80), 11(0x800), 15(0x8000) 
+        //   the return value is a 32 bit integer, where bit 3 (0x8), 7(0x80), 11(0x800), 15(0x8000)
         //   represents whether sample 0, 1, 2, 3 is covered.
         //
-        //   You can implement the function directly using SSE intrinsics, or you can extract 
+        //   You can implement the function directly using SSE intrinsics, or you can extract
         //   the x,y argument into int[4] and do the computation four times, one for each sample,
         //   and then repack the results into a bitmask with the format described above.
         //
@@ -113,12 +113,57 @@ namespace RasterRenderer
 
         inline int TestQuadFragment(__m128i x, __m128i y)
         {
-
-            // TODO: 
             // Implement triangle-quad-fragment coverage testing here.
             // Return an integer encoding the coverage testing results.
 
-            return 0;
+            /******************************
+             * Ei = A(x-xi) + B(y-yi)
+             ******************************/
+            __m128i x_diff_0 = _mm_sub_epi32(x, x0);
+            __m128i x_diff_1 = _mm_sub_epi32(x, x1);
+            __m128i x_diff_2 = _mm_sub_epi32(x, x2);
+
+            __m128i y_diff_0 = _mm_sub_epi32(y, y0);
+            __m128i y_diff_1 = _mm_sub_epi32(y, y1);
+            __m128i y_diff_2 = _mm_sub_epi32(y, y2);
+
+            __m128i ax_product_0 = _mm_mullo_epi32(a0, x_diff_0);
+            __m128i by_product_0 = _mm_mullo_epi32(b0, y_diff_0);
+            __m128i e0 = _mm_add_epi32(ax_product_0, by_product_0);
+
+            __m128i ax_product_1 = _mm_mullo_epi32(a1, x_diff_1);
+            __m128i by_product_1 = _mm_mullo_epi32(b1, y_diff_1);
+            __m128i e1 = _mm_add_epi32(ax_product_1, by_product_1);
+
+            __m128i ax_product_2 = _mm_mullo_epi32(a2, x_diff_2);
+            __m128i by_product_2 = _mm_mullo_epi32(b2, y_diff_2);
+            __m128i e2 = _mm_add_epi32(ax_product_2, by_product_2);
+
+            /*********************************************
+             * Extract, then compare E0, E1, and E2 to 0,
+             * pixel by pixel
+             *********************************************/
+            int final_mask = 0x0000;
+
+            CORE_LIB_ALIGN_16(int e0_extract[4]);
+            _mm_store_ps((float*)e0_extract, _mm_castsi128_ps(e0));
+
+            CORE_LIB_ALIGN_16(int e1_extract[4]);
+            _mm_store_ps((float*)e1_extract, _mm_castsi128_ps(e1));
+
+            CORE_LIB_ALIGN_16(int e2_extract[4]);
+            _mm_store_ps((float*)e2_extract, _mm_castsi128_ps(e2));
+            // Test pixel by pixel for success rather than e by e
+            for (int i = 0; i < 4; i++) {
+                bool e0pass, e1pass, e2pass;
+                e0pass = e0_extract[i] > 0 || (e0_extract[i] == 0 && isOwnerEdge[0]);
+                e1pass = e1_extract[i] > 0 || (e1_extract[i] == 0 && isOwnerEdge[1]);
+                e2pass = e2_extract[i] > 0 || (e2_extract[i] == 0 && isOwnerEdge[2]);
+
+                if (e0pass && e1pass && e2pass) final_mask |= 0x8 << (4 * i);
+            }
+
+            return final_mask;
 
         }
     };
@@ -130,7 +175,9 @@ namespace RasterRenderer
     // Parameters:
     //
     //   tileX0, tileY0: the top-left corner coordinate (in pixels) of current working tile
+    //   (let's assume we're using regionX0 and regionY0)
     //   tileW, tileH: the width and height of current working tile, in pixels
+    //   (same deal here, regionW and regionH)
     //   tri: setup triangle equations (see ProjectedTriangle.h)
     //   triSIMD: all values of tri in SIMD registers (see struct definition above)
     //   processQuadFragmentFunc: for every quad fragment that may generate coverage, this method should
@@ -150,16 +197,42 @@ namespace RasterRenderer
     //   quad fragment is entirely covered by the triangle.  That
     //   is, that all samples in the quad fragment are covered.
     //
-    //   If you don't need to perform this optimization in your renderer, 
+    //   If you don't need to perform this optimization in your renderer,
     //   always set trivialAccept to false.
 
     template<typename ProcessPixelFunc>
     inline void RasterizeTriangle(int regionX0, int regionY0, int regionW, int regionH, const ProjectedTriangle &tri, TriangleSIMD& triSIMD, ProcessPixelFunc processQuadFragmentFunc)
     {
-        
-        // TODO: 
+
         // Implement triangle rasterization here.
-        
+
+        // TODO: use min/max coordinates + bounding box from Projected Triangle
+        int xMin = std::min(std::min(tri.X0, tri.X1), tri.X2);
+        int xMax = std::max(std::max(tri.X0, tri.X1), tri.X2);
+        int yMin = std::min(std::min(tri.Y0, tri.Y1), tri.Y2);
+        int yMax = std::max(std::max(tri.Y0, tri.Y1), tri.Y2);
+
+        xMin >>= 4;
+        xMax >>= 4;
+        yMin >>= 4;
+        yMax >>= 4;
+
+        xMin -= 1;
+        xMax += 1;
+        yMin -= 1;
+        yMax += 1;
+
+        if (xMin < regionX0) xMin = regionX0;
+        if (xMax > regionX0 + regionW) xMax = regionX0 + regionW;
+        if (yMin < regionY0) yMin = regionY0;
+        if (yMax > regionY0 + regionH) yMax = regionY0;
+
+        for (int tileY = yMin; tileY < yMax; tileY += 2) {
+            for (int tileX = xMin; tileX < xMax; tileX += 2) {
+                processQuadFragmentFunc(tileX, tileY, false);
+            }
+        }
+
     }
 }
 
