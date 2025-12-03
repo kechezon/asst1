@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libCoreLib_Graphics.a CMakeFiles/CoreLib_Graphics.dir/ObjModel.cpp.o CMakeFiles/CoreLib_Graphics.dir/BezierMesh.cpp.o CMakeFiles/CoreLib_Graphics.dir/Camera.cpp.o
+/usr/bin/ranlib ../../lib/libCoreLib_Graphics.a

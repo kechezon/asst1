@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libCoreLib_Regex.a CMakeFiles/CoreLib_Regex.dir/MetaLexer.cpp.o CMakeFiles/CoreLib_Regex.dir/Regex.cpp.o CMakeFiles/CoreLib_Regex.dir/RegexDFA.cpp.o CMakeFiles/CoreLib_Regex.dir/RegexNFA.cpp.o CMakeFiles/CoreLib_Regex.dir/RegexParser.cpp.o CMakeFiles/CoreLib_Regex.dir/RegexTree.cpp.o
+/usr/bin/ranlib ../../lib/libCoreLib_Regex.a

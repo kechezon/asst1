@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libCoreLib_Imaging.a CMakeFiles/CoreLib_Imaging.dir/Bitmap.cpp.o CMakeFiles/CoreLib_Imaging.dir/stb_image.c.o CMakeFiles/CoreLib_Imaging.dir/TextureData.cpp.o
+/usr/bin/ranlib ../../lib/libCoreLib_Imaging.a

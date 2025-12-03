@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libCoreLib_Basic.a CMakeFiles/CoreLib_Basic.dir/LibIO.cpp.o CMakeFiles/CoreLib_Basic.dir/LibMath.cpp.o CMakeFiles/CoreLib_Basic.dir/LibString.cpp.o CMakeFiles/CoreLib_Basic.dir/Parser.cpp.o CMakeFiles/CoreLib_Basic.dir/PerformanceCounter.cpp.o CMakeFiles/CoreLib_Basic.dir/Stream.cpp.o CMakeFiles/CoreLib_Basic.dir/TextIO.cpp.o CMakeFiles/CoreLib_Basic.dir/VectorMath.cpp.o CMakeFiles/CoreLib_Basic.dir/WideChar.cpp.o
+/usr/bin/ranlib ../lib/libCoreLib_Basic.a

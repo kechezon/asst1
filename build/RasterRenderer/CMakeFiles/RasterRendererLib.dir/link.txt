@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libRasterRendererLib.a CMakeFiles/RasterRendererLib.dir/FrameBuffer.o CMakeFiles/RasterRendererLib.dir/IRasterRenderer.o CMakeFiles/RasterRendererLib.dir/ModelResource.o CMakeFiles/RasterRendererLib.dir/NontiledForwardRenderer.o CMakeFiles/RasterRendererLib.dir/Shader.o CMakeFiles/RasterRendererLib.dir/Statistics.o CMakeFiles/RasterRendererLib.dir/TiledRenderer.o
+/usr/bin/ranlib ../lib/libRasterRendererLib.a
