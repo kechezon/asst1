@@ -18,7 +18,7 @@ namespace RasterRenderer
 
         // starter code uses 32x32 tiles, feel free to change
 
-        static const int Log2TileSize = 6;
+        static const int Log2TileSize = 7;
         static const int TileSize = 1 << Log2TileSize;
 
         // HINT:
@@ -27,10 +27,10 @@ namespace RasterRenderer
         // (What other data-structures might be necessary?)
 
         // tiles are how we partition the process stage, need a frameBuffer copy per tile
-        std::vector<FrameBuffer> frameBufferTiles;
+        //std::vector<FrameBuffer> frameBufferTiles;
 
         // contain indices into projected triangle list
-        std::vector<std::vector<std::vector<std::vector<int>>>> bins; // bins[row][col][coreId]
+        std::vector<std::vector<std::vector<int>>> bins; // bins[coreId][tileIdx]
 
         // render target is grid of tiles: see SetFrameBuffer
         int gridWidth, gridHeight;
@@ -43,10 +43,10 @@ namespace RasterRenderer
 
         inline void Clear(const Vec4 & clearColor, bool color, bool depth)
         {
-            for (auto & fb : frameBufferTiles)
-                fb.Clear(clearColor, color, depth);
+            /*for (auto & fb : frameBufferTiles)
+                fb.Clear(clearColor, color, depth);*/
             frameBuffer->Clear(clearColor, color, depth);
-            printf("Clear!\n");
+            //printf("Clear!\n");
         }
 
         inline void SetFrameBuffer(FrameBuffer * frameBuffer)
@@ -71,7 +71,7 @@ namespace RasterRenderer
             // any necessary data-structures here. You may wish to
             // consult the HINT at the top of the file.
 
-            for (int g = 0; g < gridWidth * gridHeight; g++) {
+            /*for (int g = 0; g < gridWidth * gridHeight; g++) {
                 frameBufferTiles.emplace_back(frameBuffer->GetWidth(),
                                               frameBuffer->GetHeight(),
                                               frameBuffer->GetSampleCount());
@@ -84,14 +84,13 @@ namespace RasterRenderer
                         fb.SetZ(x, y, 0, FLT_MAX);
                     }
                 }
-            }
+            }*/
 
-            for (int y = 0; y < gridHeight; y++) {
+            for (int c = 0; c < Cores; c++) {
                 bins.emplace_back();
-                for (int x = 0; x < gridWidth; x++) {
-                    bins[y].emplace_back();
-                    for (int c = 0; c < Cores; c++) {
-                        bins[y][x].emplace_back();
+                for (int y = 0; y < gridHeight; y++) {
+                    for (int x = 0; x < gridWidth; x++) {
+                        bins[c].emplace_back();
                     }
                 }
             }
@@ -104,7 +103,7 @@ namespace RasterRenderer
             // implementation should flush local per-tile framebuffer contents to the
             // global frame buffer (this->frameBuffer) here.
 
-            int fbWidth = frameBuffer->GetWidth();
+            /*int fbWidth = frameBuffer->GetWidth();
             int fbHeight = frameBuffer->GetHeight();
 
             for (auto & fbtile : frameBufferTiles) {
@@ -118,7 +117,7 @@ namespace RasterRenderer
                         }
                     }
                 }
-            }
+            }*/
         }
 
         inline void BinTriangles(RenderState & state, ProjectedTriangleInput & input, int vertexOutputSize, int threadId)
@@ -142,27 +141,27 @@ namespace RasterRenderer
                 triRight = std::min(triRight, frameBuffer->GetWidth() - 1);
                 triRight >>= Log2TileSize;
 
-                int triBottom = std::min(std::min(tri.Y0, tri.Y1), tri.Y2) >> 4;
-                triBottom = std::min(triBottom, 0);
-                triBottom >>= Log2TileSize;
-                int triTop = std::max(std::max(tri.Y0, tri.Y1), tri.Y2) >> 4;
-                triTop = std::min(triTop, frameBuffer->GetHeight() - 1);
+                int triTop = std::min(std::min(tri.Y0, tri.Y1), tri.Y2) >> 4;
+                triTop = std::min(triTop, 0);
                 triTop >>= Log2TileSize;
+                int triBottom = std::max(std::max(tri.Y0, tri.Y1), tri.Y2) >> 4;
+                triBottom = std::min(triBottom, frameBuffer->GetHeight() - 1);
+                triBottom >>= Log2TileSize;
 
 
                 // DEBUG
-                triBottom = 0;
-                triTop = 0;
+                /*triTop = 0;
+                triBottom = gridHeight - 1;
                 triLeft = 0;
-                triRight = 0;
+                triRight = gridWidth - 1;*/
 
-                for (int y = triBottom; y <= triTop; y++) {
+                for (int y = triTop; y <= triBottom; y++) {
                     for (int x = triLeft; x <= triRight; x++) {
-                        bins[y][x][threadId].emplace_back(i);
+                        bins[threadId][(y * gridWidth) + x].emplace_back(i);
                     }
                 }
             }
-            printf("Core %i binned %i triangles\n", threadId, triangles.Count());
+            //printf("Core %i binned %i triangles\n", threadId, triangles.Count());
         }
 
         inline void ProcessBin(RenderState & state, ProjectedTriangleInput & input, int vertexOutputSize, int tileId)
@@ -199,25 +198,26 @@ namespace RasterRenderer
             /*if (tileId == 0) printf("Called!\n");
             return;*/
 
-            FrameBuffer *myFrameBuffer = &(frameBufferTiles[tileId]);
-            std::vector<std::vector<int>> myBins = bins[tileId / gridWidth][tileId % gridWidth];
+            //FrameBuffer *myFrameBuffer = &(frameBufferTiles[tileId]);
 
             __m128 one = _mm_set_ps1(1.0f);
 
             static __m128i xOffset = _mm_set_epi32(24, 8, 24, 8);
             static __m128i yOffset = _mm_set_epi32(24, 24, 8, 8);
 
-            int sampleCount = myFrameBuffer->GetSampleCount();
-            int multiSampleLevel = myFrameBuffer->GetSampleCountLog2();
+            //int sampleCount = myFrameBuffer->GetSampleCount();
+            //int multiSampleLevel = myFrameBuffer->GetSampleCountLog2();
+            int sampleCount = frameBuffer->GetSampleCount();
+            int multiSampleLevel = frameBuffer->GetSampleCountLog2();
 
             //ProjectedTriangleInput::Iterator triIter(input);
 
             for (int i = 0; i < Cores; i++) {
+                std::vector<int> currentBin = bins[i][tileId];
                 auto triangles = input.triangleBuffer[i];
-                assert(myBins[i][myBins[i].size() - 1] < triangles.Count());
-                if (tileId == 0) printf("Accessed triangles in core %i of %i\n", i, Cores - 1);
+                //if (tileId == 0) printf("Accessed triangles in core %i of %i\n", i, Cores - 1);
                 // get the triangle
-                for (int triId : myBins[i]) {
+                for (int triId : currentBin) {
                     auto tri = triangles[triId];
                     TriangleSIMD triSIMD;
                     triSIMD.Load(tri);
@@ -228,11 +228,15 @@ namespace RasterRenderer
                     int rasterTop = TileSize * (tileId / gridWidth);
                     int rasterBottom = min(rasterTop + TileSize, frameBuffer->GetHeight());
                     int rasterWidth = rasterRight - rasterLeft;
-                    int rasterHeight = rasterTop - rasterBottom;
+                    int rasterHeight = rasterBottom - rasterTop;
 
+                    //printf("(%i->%i, %i->%i) with dimensions (w, h) = (%i, %i)\n", rasterLeft, rasterRight, rasterTop, rasterBottom, rasterWidth, rasterHeight);
+
+                    //RasterizeTriangle(0, 0, frameBuffer->GetWidth(), frameBuffer->GetHeight(),
                     RasterizeTriangle(rasterLeft, rasterTop, rasterWidth, rasterHeight,
                                       tri, triSIMD, [&](int qfx, int qfy, bool trivialAccept)
                     {
+                        //printf("Rasterizing...\n");
                         // BruteForceRasterizer invokes this lambda once per
                         // "potentially covered" quad fragment.
 
@@ -281,34 +285,42 @@ namespace RasterRenderer
 
                         if (coverageMask & 0x0008)
                         {
-                            if (myFrameBuffer->GetZ(x, y, 0) > zStore[0])
+                            //if (myFrameBuffer->GetZ(x, y, 0) > zStore[0])
+                            if (frameBuffer->GetZ(x, y, 0) > zStore[0])
                             {
                                 visibility.SetBit(0);
-                                myFrameBuffer->SetZ(x, y, 0, zStore[0]);
+                                //myFrameBuffer->SetZ(x, y, 0, zStore[0]);
+                                frameBuffer->SetZ(x, y, 0, zStore[0]);
                             }
                         }
                         if (coverageMask & 0x0080)
                         {
-                            if (myFrameBuffer->GetZ(x + 1, y, 0) > zStore[1])
+                            //if (myFrameBuffer->GetZ(x + 1, y, 0) > zStore[1])
+                            if (frameBuffer->GetZ(x + 1, y, 0) > zStore[1])
                             {
                                 visibility.SetBit(1);
-                                myFrameBuffer->SetZ(x + 1, y, 0, zStore[1]);
+                                //myFrameBuffer->SetZ(x + 1, y, 0, zStore[1]);
+                                frameBuffer->SetZ(x + 1, y, 0, zStore[1]);
                             }
                         }
                         if (coverageMask & 0x0800)
                         {
-                            if (myFrameBuffer->GetZ(x, y + 1, 0) > zStore[2])
+                            //if (myFrameBuffer->GetZ(x, y + 1, 0) > zStore[2])
+                            if (frameBuffer->GetZ(x, y + 1, 0) > zStore[2])
                             {
                                 visibility.SetBit(2);
-                                myFrameBuffer->SetZ(x, y + 1, 0, zStore[2]);
+                                //myFrameBuffer->SetZ(x, y + 1, 0, zStore[2]);
+                                frameBuffer->SetZ(x, y + 1, 0, zStore[2]);
                             }
                         }
                         if (coverageMask & 0x8000)
                         {
-                            if (myFrameBuffer->GetZ(x + 1, y + 1, 0) > zStore[3])
+                            //if (myFrameBuffer->GetZ(x + 1, y + 1, 0) > zStore[3])
+                            if (frameBuffer->GetZ(x + 1, y + 1, 0) > zStore[3])
                             {
                                 visibility.SetBit(3);
-                                myFrameBuffer->SetZ(x + 1, y + 1, 0, zStore[3]);
+                                //myFrameBuffer->SetZ(x + 1, y + 1, 0, zStore[3]);
+                                frameBuffer->SetZ(x + 1, y + 1, 0, zStore[3]);
                             }
                         }
 
@@ -335,22 +347,30 @@ namespace RasterRenderer
 
                             if (visibility.GetBit(0))
                             {
-                                myFrameBuffer->SetPixel(x, y, 0,
+                                //printf("Setting pixel...\n");
+                                //myFrameBuffer->SetPixel(x, y, 0,
+                                frameBuffer->SetPixel(x, y, 0,
                                                         Vec4(shadeResult[0], shadeResult[4],
                                                              shadeResult[8], shadeResult[12]));
                             }
                             if (visibility.GetBit(1)) {
-                                myFrameBuffer->SetPixel(x + 1, y, 0,
+                                //printf("Setting pixel...\n");
+                                //myFrameBuffer->SetPixel(x + 1, y, 0,
+                                frameBuffer->SetPixel(x + 1, y, 0,
                                                         Vec4(shadeResult[1], shadeResult[5],
                                                              shadeResult[9], shadeResult[13]));
                             }
                             if (visibility.GetBit(2)) {
-                                myFrameBuffer->SetPixel(x, y + 1, 0,
+                                //printf("Setting pixel...\n");
+                                //myFrameBuffer->SetPixel(x, y + 1, 0,
+                                frameBuffer->SetPixel(x, y + 1, 0,
                                                         Vec4(shadeResult[2], shadeResult[6],
                                                              shadeResult[10], shadeResult[14]));
                             }
                             if (visibility.GetBit(3)) {
-                                myFrameBuffer->SetPixel(x + 1, y + 1, 0,
+                                //printf("Setting pixel...\n");
+                                //myFrameBuffer->SetPixel(x + 1, y + 1, 0,
+                                frameBuffer->SetPixel(x + 1, y + 1, 0,
                                                         Vec4(shadeResult[3], shadeResult[7],
                                                              shadeResult[11], shadeResult[15]));
                             }
@@ -370,12 +390,11 @@ namespace RasterRenderer
         inline void RenderProjectedBatch(RenderState & state, ProjectedTriangleInput & input, int vertexOutputSize)
         {
             bins = {};
-            for (int y = 0; y < gridHeight; y++) {
+            for (int c = 0; c < Cores; c++) {
                 bins.emplace_back();
-                for (int x = 0; x < gridWidth; x++) {
-                    bins[y].emplace_back();
-                    for (int c = 0; c < Cores; c++) {
-                        bins[y][x].emplace_back();
+                for (int y = 0; y < gridHeight; y++) {
+                    for (int x = 0; x < gridWidth; x++) {
+                        bins[c].emplace_back();
                     }
                 }
             }

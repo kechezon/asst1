@@ -206,7 +206,7 @@ namespace RasterRenderer
 
         // Implement triangle rasterization here.
 
-        // TODO: use min/max coordinates + bounding box from Projected Triangle
+        // use min/max coordinates + bounding box from Projected Triangle
         int xMin = std::min(std::min(tri.X0, tri.X1), tri.X2);
         int xMax = std::max(std::max(tri.X0, tri.X1), tri.X2);
         int yMin = std::min(std::min(tri.Y0, tri.Y1), tri.Y2);
@@ -225,7 +225,7 @@ namespace RasterRenderer
         if (xMin < regionX0) xMin = regionX0;
         if (xMax > regionX0 + regionW) xMax = regionX0 + regionW;
         if (yMin < regionY0) yMin = regionY0;
-        if (yMax > regionY0 + regionH) yMax = regionY0;
+        if (yMax > regionY0 + regionH) yMax = regionY0 + regionH;
 
         for (int tileY = yMin; tileY < yMax; tileY += 2) {
             for (int tileX = xMin; tileX < xMax; tileX += 2) {
